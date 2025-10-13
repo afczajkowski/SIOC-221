@@ -5,8 +5,7 @@ Created on Fri Oct 10 09:24:34 2025
 
 @author: auroraczajkowski
 """
-
-#import necesary files
+# --- Imports ---
 import os
 import math
 import numpy as np
@@ -14,7 +13,7 @@ import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
 
-#define file paths 
+# --- File paths ---
 files = {
     2005: "/Users/auroraczajkowski/Desktop/SIOC 221A/HW 1 data/scripps_pier-2005.nc",
     2006: "/Users/auroraczajkowski/Desktop/SIOC 221A/HW 1 data/scripps_pier-2006.nc",
@@ -34,26 +33,26 @@ files = {
     2020: "/Users/auroraczajkowski/Desktop/SIOC 221A/HW 1 data/scripps_pier-2020.nc",
     2021: "/Users/auroraczajkowski/Desktop/SIOC 221A/HW 1 data/scripps_pier-2021.nc",
 }
+
 years_eval = [2014, 2020]
 var_names = ["temperature", "pressure"]   # two variables to plot
 
-#load data for selected years into DataFrame per year with both variables (temp and pressure)
-year_series = {}  
-    #{year: DataFrame(columns=var_names)}
+# --- Load selected years into a DataFrame per year with both variables ---
+year_series = {}  # {year: DataFrame(columns=var_names)}
 for y in years_eval:
     path = files.get(y, None)
     if path is None or not os.path.exists(path):
         print(f"WARNING: missing {y}: {path}")
         continue
     ds = xr.open_dataset(path, decode_times=True)
-    #get both variables if present
     have = [vn for vn in var_names if vn in ds.variables]
     if not have:
         print(f"WARNING: {y} has none of {var_names}")
+        ds.close()
         continue
     s = ds[have].convert_calendar("proleptic_gregorian").to_pandas().dropna()
-    #keep only columns we care about, in desired order if present
-    s = s[[vn for vn in var_names if vn in s.columns]]
+    ds.close()
+    s = s[[vn for vn in var_names if vn in s.columns]]  # keep order
     if s.empty:
         print(f"WARNING: {y} produced empty DataFrame after dropna.")
         continue
@@ -62,7 +61,7 @@ for y in years_eval:
 if not year_series:
     raise RuntimeError("No data loaded for requested years. Check file paths/variable names.")
 
-#pooled, robust bins per variable (1–99th pct over both years)
+# --- Pooled, robust bins per variable (1–99th pct over both years) ---
 def make_bins_for_variable(year_series, var_name, dbin=0.1):
     vals = []
     for y, df in year_series.items():
@@ -81,20 +80,19 @@ def make_bins_for_variable(year_series, var_name, dbin=0.1):
     centers = (edges[:-1] + edges[1:]) / 2
     return edges, centers
 
-#gaussian and uniform PDFs matching mean & variance
+# --- Gaussian and uniform PDFs matching mean & variance ---
 def gaussian_pdf(x, mu, sigma):
     if sigma <= 0 or not np.isfinite(sigma):
         return np.full_like(x, np.nan)
     return (1.0 / (sigma * math.sqrt(2.0 * math.pi))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 
 def uniform_params_from_mean_var(mu, sigma):
-    #for uniform(a,b): mean = (a+b)/2 = mu; var = (b-a)^2 / 12 = sigma^2
+    # For Uniform(a,b): mean=(a+b)/2=mu; var=(b-a)^2/12 = sigma^2
     if sigma <= 0 or not np.isfinite(sigma):
         return None, None
     width = math.sqrt(12.0) * sigma
     a = mu - 0.5 * width
     b = mu + 0.5 * width
-    #if width ~ 0, this degenerates; guard above handles sigma<=0
     return a, b
 
 def uniform_pdf(x, a, b):
@@ -106,7 +104,7 @@ def uniform_pdf(x, a, b):
     out[mask] = height
     return out
 
-#build the 2x2 figure: rows=variables, cols=years (2014 | 2020)
+# --- Build the 2x2 figure: rows = variables, cols = years (2014 | 2020) ---
 fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=False, sharey=False)
 axes = np.asarray(axes)
 
@@ -117,10 +115,11 @@ var_labels = {
 }
 
 for r, vn in enumerate(var_names):
-    #bins per variable (common across both years)
-    edges, centers = make_bins_for_variable(year_series, vn, dbin=0.1 if vn == "temperature" else 0.5)
+    # bins per variable (common across both years)
+    dbin = 0.1 if vn == "temperature" else 0.5
+    edges, centers = make_bins_for_variable(year_series, vn, dbin=dbin)
     if edges is None:
-        #no data for this variable at all
+        # no data for this variable at all
         for c, y in enumerate(years_eval):
             ax = axes[r, c]
             ax.text(0.5, 0.5, f"No finite {vn} data\nfor {years_eval}", ha='center', va='center')
@@ -142,19 +141,19 @@ for r, vn in enumerate(var_names):
             ax.set_axis_off()
             continue
 
-        #histogram-based PDF (density=True)
+        # histogram-based PDF (density=True)
         pdf_vals, _ = np.histogram(vals, bins=edges, density=True)
 
-        #observed mean & std
+        # observed mean & std
         mu = np.mean(vals)
         sigma = np.std(vals, ddof=0)  # population sigma for consistency
 
-        #theoretical PDFs with observed μ, σ^2
+        # theoretical PDFs with observed μ, σ^2
         gpdf = gaussian_pdf(centers, mu, sigma)
         a, b = uniform_params_from_mean_var(mu, sigma)
         updf = uniform_pdf(centers, a, b)
 
-        #plot
+        # plot
         ax.plot(centers, pdf_vals, label="Empirical (hist)", linewidth=1.5)
         if np.isfinite(gpdf).all():
             ax.plot(centers, gpdf, linestyle="--", label="Gaussian(μ, σ²)", linewidth=1.2)
@@ -166,17 +165,19 @@ for r, vn in enumerate(var_names):
         else:
             ax.text(0.02, 0.88, "σ≈0 → Uniform skipped", transform=ax.transAxes, va='top', fontsize=8)
 
+        # Titles/labels/formatting
         ax.set_title(f"{vn.capitalize()} — {y}")
         ax.set_xlabel(var_labels.get(vn, vn))
         ax.set_ylabel("PDF")
         ax.grid(True, alpha=0.3)
         ax.tick_params(labelsize=8)
+        ax.legend(fontsize=8, ncol=2, loc="best")
 
-        #show μ±σ band
-        #ax.axvspan(mu - sigma, mu + sigma, alpha=0.05)
-
-        #legend (only once per row if you prefer)
-        ax.legend(fontsize=8, loc="best")
+        # --- Set y-axis limits by variable ---
+        if vn == "temperature":
+            ax.set_ylim(0, 0.4)
+        elif vn == "pressure":
+            ax.set_ylim(0, 0.8)
 
 fig.suptitle("Scripps Pier — PDFs for 2014 & 2020 (Empirical vs Gaussian & Uniform)", fontsize=14)
 plt.tight_layout(rect=[0, 0, 1, 0.96])
