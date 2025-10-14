@@ -5,7 +5,7 @@ Created on Fri Oct 10 09:24:34 2025
 
 @author: auroraczajkowski
 """
-# --- Imports ---
+#import packages
 import os
 import math
 import numpy as np
@@ -13,7 +13,7 @@ import pandas as pd
 import xarray as xr
 import matplotlib.pyplot as plt
 
-# --- File paths ---
+#file paths
 files = {
     2005: "/Users/auroraczajkowski/Desktop/SIOC 221A/HW 1 data/scripps_pier-2005.nc",
     2006: "/Users/auroraczajkowski/Desktop/SIOC 221A/HW 1 data/scripps_pier-2006.nc",
@@ -37,7 +37,7 @@ files = {
 years_eval = [2014, 2020]
 var_names = ["temperature", "pressure"]   # two variables to plot
 
-# --- Load selected years into a DataFrame per year with both variables ---
+#load selected years into a DataFrame per year with both variables
 year_series = {}  # {year: DataFrame(columns=var_names)}
 for y in years_eval:
     path = files.get(y, None)
@@ -61,7 +61,7 @@ for y in years_eval:
 if not year_series:
     raise RuntimeError("No data loaded for requested years. Check file paths/variable names.")
 
-# --- Pooled, robust bins per variable (1–99th pct over both years) ---
+#pooled, robust bins per variable (1–99th pct over both years)
 def make_bins_for_variable(year_series, var_name, dbin=0.1):
     vals = []
     for y, df in year_series.items():
@@ -80,14 +80,14 @@ def make_bins_for_variable(year_series, var_name, dbin=0.1):
     centers = (edges[:-1] + edges[1:]) / 2
     return edges, centers
 
-# --- Gaussian and uniform PDFs matching mean & variance ---
+#gaussian and uniform PDFs matching mean & variance
 def gaussian_pdf(x, mu, sigma):
     if sigma <= 0 or not np.isfinite(sigma):
         return np.full_like(x, np.nan)
     return (1.0 / (sigma * math.sqrt(2.0 * math.pi))) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 
 def uniform_params_from_mean_var(mu, sigma):
-    # For Uniform(a,b): mean=(a+b)/2=mu; var=(b-a)^2/12 = sigma^2
+    #for uniform(a,b): mean=(a+b)/2=mu; var=(b-a)^2/12 = sigma^2
     if sigma <= 0 or not np.isfinite(sigma):
         return None, None
     width = math.sqrt(12.0) * sigma
@@ -104,18 +104,18 @@ def uniform_pdf(x, a, b):
     out[mask] = height
     return out
 
-# --- Build the 2x2 figure: rows = variables, cols = years (2014 | 2020) ---
+#build the 2x2 figure: rows = variables, cols = years (2014 | 2020)
 fig, axes = plt.subplots(2, 2, figsize=(12, 8), sharex=False, sharey=False)
 axes = np.asarray(axes)
 
 # Titles and axis labels
 var_labels = {
     "temperature": "Temperature (°C)",
-    "pressure": "Pressure (hPa)"  # adjust if your units differ
+    "pressure": "Pressure (hPa)"  
 }
 
 for r, vn in enumerate(var_names):
-    # bins per variable (common across both years)
+    #bins per variable (common across both years)
     dbin = 0.1 if vn == "temperature" else 0.5
     edges, centers = make_bins_for_variable(year_series, vn, dbin=dbin)
     if edges is None:
@@ -141,19 +141,19 @@ for r, vn in enumerate(var_names):
             ax.set_axis_off()
             continue
 
-        # histogram-based PDF (density=True)
+        #histogram-based PDF (density=True)
         pdf_vals, _ = np.histogram(vals, bins=edges, density=True)
 
-        # observed mean & std
+        #observed mean & std
         mu = np.mean(vals)
         sigma = np.std(vals, ddof=0)  # population sigma for consistency
 
-        # theoretical PDFs with observed μ, σ^2
+        #theoretical PDFs with observed μ, σ^2
         gpdf = gaussian_pdf(centers, mu, sigma)
         a, b = uniform_params_from_mean_var(mu, sigma)
         updf = uniform_pdf(centers, a, b)
 
-        # plot
+        #plot
         ax.plot(centers, pdf_vals, label="Empirical (hist)", linewidth=1.5)
         if np.isfinite(gpdf).all():
             ax.plot(centers, gpdf, linestyle="--", label="Gaussian(μ, σ²)", linewidth=1.2)
@@ -165,7 +165,7 @@ for r, vn in enumerate(var_names):
         else:
             ax.text(0.02, 0.88, "σ≈0 → Uniform skipped", transform=ax.transAxes, va='top', fontsize=8)
 
-        # Titles/labels/formatting
+        #titles/labels/formatting
         ax.set_title(f"{vn.capitalize()} — {y}")
         ax.set_xlabel(var_labels.get(vn, vn))
         ax.set_ylabel("PDF")
@@ -173,7 +173,7 @@ for r, vn in enumerate(var_names):
         ax.tick_params(labelsize=8)
         ax.legend(fontsize=8, ncol=2, loc="best")
 
-        # --- Set y-axis limits by variable ---
+        #set y-axis limits by variable
         if vn == "temperature":
             ax.set_ylim(0, 0.4)
         elif vn == "pressure":
