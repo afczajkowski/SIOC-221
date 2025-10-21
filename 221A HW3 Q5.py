@@ -158,7 +158,7 @@ fig.text(0.06, 0.5, "Value (monthly means ± SEM)  with annual and semi-annual f
 plt.tight_layout(rect=[0.06, 0.06, 1, 1])
 plt.show()
 
-# ---- χ² Misfit Comparison ----
+# chi squared misfit comparison
 def model_misfit(y_obs, y_fit, sigma2=1.0, M=3):
     resid = y_obs - y_fit
     N = len(resid)
